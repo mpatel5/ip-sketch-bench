@@ -36,10 +36,12 @@ def glove(path: str | Path, n: int | None = None, nq: int = 1000, seed: int = 0)
     """
     rows = []
     with open(path, encoding="utf8") as f:
-        for i, line in enumerate(f):
-            if n is not None and i >= n + nq:
+        for line in f:
+            if n is not None and len(rows) >= n + nq:
                 break
             parts = line.rstrip().split(" ")
+            if len(parts) <= 2:  # word2vec-style "count dim" header line
+                continue
             rows.append(np.asarray(parts[1:], dtype=np.float32))
     X = np.stack(rows)
     rng = np.random.default_rng(seed)
