@@ -81,3 +81,10 @@ def test_beats_plain_asq_on_inner_products_with_outlier_queries():
     ip = err(lambda s: InnerProductAwareASQ(2, seed=s))
     plain = err(lambda s: AdaptiveStochasticQuant(2, seed=s))
     assert ip < 0.9 * plain
+
+
+def test_bit_budget_counts_level_table():
+    from ipsketch.data import isotropic
+
+    X, _ = isotropic(100, 64, 1)
+    assert InnerProductAwareASQ(2).fit(X).bits_per_vector == 2 * 64 + 4 * 32

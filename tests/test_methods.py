@@ -83,7 +83,7 @@ def test_rotation_helps_with_outlier_channels():
     assert err(RotatedQuant(2)) < err(UniformQuant(2, stochastic=True))
 
 
-@pytest.mark.parametrize("key", list(METHODS))
+@pytest.mark.parametrize("key", [k for k in METHODS if k != "ipasq"])  # ipasq: see test_ipasq.py
 @pytest.mark.parametrize("bits", [1, 4])
 def test_bit_budget_respected(key, bits):
     X, _ = isotropic(300, 64, 1)
