@@ -219,6 +219,39 @@ class AdaptiveStochasticQuant(Compressor):
         return self.bits * self.d + (1 << self.bits) * FLOAT_BITS  # codes + level table
 
 
+class InnerProductAwareASQ(Compressor):
+    """Inner-product-aware ASQ: the average-case objective (ADV) from White & Singal (NeurIPS 2026).
+
+    Plain ASQ minimizes sum_i VarSSQ(w_i, Q), which treats every coordinate
+    equally. With unbiased stochastic rounding,
+        Var[<w_hat, x>] = sum_i x_i^2 * VarSSQ(w_i, Q),
+    so averaging over queries x gives weights lambda_i = E[x_i^2]. ADV minimizes
+        sum_i lambda_i * (w_i_up - w_i) * (w_i - w_i_down)
+    over level sets Q with |Q| <= s = 2^bits. This is weighted ASQ.
+
+    lambda is estimated from the database X, as a proxy for the query
+    distribution (in this benchmark, queries are drawn from the same distribution).
+
+    TODO(Mitesh): implement fit(). See docs/ipasq.md for the plan and tests/test_ipasq.py
+    for the checks your implementation has to pass.
+    """
+
+    name = "IP-aware ASQ (ADV)"
+    unbiased = True
+
+    def fit(self, X):
+        self.n, self.d = X.shape
+        self.lam = (X.astype(np.float64) ** 2).mean(axis=0)  # lambda_i = E[x_i^2]
+        raise NotImplementedError("implement the weighted DP; see docs/ipasq.md")
+
+    def estimate_ip(self, Q):
+        return Q @ self.Xq.T
+
+    @property
+    def bits_per_vector(self):
+        return self.bits * self.d + (1 << self.bits) * FLOAT_BITS
+
+
 # --------------------------------------------------------------------------- #
 # Sketches
 # --------------------------------------------------------------------------- #
@@ -365,6 +398,7 @@ METHODS = {
     "uniform_stoch": lambda b, s: UniformQuant(b, stochastic=True, seed=s),
     "rotated": lambda b, s: RotatedQuant(b, seed=s),
     "asq": lambda b, s: AdaptiveStochasticQuant(b, seed=s),
+    "ipasq": lambda b, s: InnerProductAwareASQ(b, seed=s),
     "jl": lambda b, s: GaussianJL(b, seed=s),
     "countsketch": lambda b, s: CountSketchIP(b, seed=s),
     "qjl": lambda b, s: QJL(b, seed=s),

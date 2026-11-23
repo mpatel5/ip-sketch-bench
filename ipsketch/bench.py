@@ -58,11 +58,11 @@ def run(X, Q, methods, bits_list, seed, dataset_name, max_asq_bits=4, asq_n=None
     rows = []
     for name in methods:
         for b in bits_list:
-            if name == "asq" and b > max_asq_bits:
+            if name in ("asq", "ipasq") and b > max_asq_bits:
                 continue  # 2^b levels per vector: DP and level-table overhead blow up
             Xm = X
             tt = true_top10
-            if name == "asq" and asq_n is not None and asq_n < len(X):
+            if name in ("asq", "ipasq") and asq_n is not None and asq_n < len(X):
                 # ASQ's exact DP is O(4^b d^2) per vector; evaluate on a prefix if asked.
                 Xm = X[:asq_n]
                 tt = exact_topk(Q, Xm, 10)
@@ -118,7 +118,7 @@ def main():
     p.add_argument("--d", type=int, default=128, help="dimension for synthetic data")
     p.add_argument("--nq", type=int, default=500)
     p.add_argument("--bits", type=int, nargs="+", default=[1, 2, 4, 8])
-    p.add_argument("--methods", nargs="+", default=list(METHODS))
+    p.add_argument("--methods", nargs="+", default=[m for m in METHODS if m != "ipasq"])
     p.add_argument("--asq-n", type=int, default=None, help="evaluate ASQ on the first N vectors only")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out", default="results")
