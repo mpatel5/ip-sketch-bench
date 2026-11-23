@@ -1,4 +1,4 @@
-"""Checks for InnerProductAwareASQ. They skip until fit() is implemented."""
+"""Checks for InnerProductAwareASQ (weighted ASQ / the ADV objective)."""
 
 import itertools
 

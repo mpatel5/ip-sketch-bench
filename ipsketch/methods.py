@@ -219,6 +219,77 @@ class AdaptiveStochasticQuant(Compressor):
         return self.bits * self.d + (1 << self.bits) * FLOAT_BITS  # codes + level table
 
 
+@njit(cache=True)
+def _weighted_asq_levels_sorted(x_sorted: np.ndarray, lam_sorted: np.ndarray, s: int) -> np.ndarray:
+    """Exact weighted ASQ levels for one vector whose values are sorted ascending.
+
+    Minimizes sum_i lam_i * (up_i - x_i) * (x_i - down_i) over s levels chosen
+    from the input values, always including min and max. For consecutive
+    levels at sorted positions j < k, the points strictly between them cost
+        C[j, k] = -L2 + (x_j + x_k) * L1 - x_j * x_k * L0,
+    where L0, L1 and L2 are the sums of lam, lam*x and lam*x^2 over (j, k),
+    read in O(1) from prefix sums. With lam = 1 this is plain ASQ.
+    """
+    d = x_sorted.shape[0]
+    if s >= d:
+        return x_sorted.copy()
+    p0 = np.zeros(d + 1)
+    p1 = np.zeros(d + 1)
+    p2 = np.zeros(d + 1)
+    for i in range(d):
+        w = lam_sorted[i]
+        xi = x_sorted[i]
+        p0[i + 1] = p0[i] + w
+        p1[i + 1] = p1[i] + w * xi
+        p2[i + 1] = p2[i] + w * xi * xi
+
+    INF = 1e300
+    dp = np.full((s, d), INF)
+    parent = np.zeros((s, d), dtype=np.int64)
+    dp[0, 0] = 0.0
+    for k in range(1, s):
+        for j in range(k, d):
+            best = INF
+            arg = 0
+            xj = x_sorted[j]
+            for i in range(k - 1, j):
+                if dp[k - 1, i] >= INF:
+                    continue
+                xi = x_sorted[i]
+                l0 = p0[j] - p0[i + 1]
+                if l0 > 0.0:
+                    l1 = p1[j] - p1[i + 1]
+                    l2 = p2[j] - p2[i + 1]
+                    cost = -l2 + (xi + xj) * l1 - xi * xj * l0
+                else:
+                    cost = 0.0
+                v = dp[k - 1, i] + cost
+                if v < best:
+                    best = v
+                    arg = i
+            dp[k, j] = best
+            parent[k, j] = arg
+
+    idx = np.empty(s, dtype=np.int64)
+    j = d - 1
+    for k in range(s - 1, -1, -1):
+        idx[k] = j
+        j = parent[k, j]
+    return x_sorted[idx]
+
+
+def weighted_asq_levels(x: np.ndarray, lam: np.ndarray, s: int) -> np.ndarray:
+    """Optimal weighted-ASQ levels for one vector x with per-coordinate weights lam.
+
+    Sorts x and carries each weight along with its coordinate before running the
+    exact DP. Returns s sorted levels (fewer if x has fewer than s entries).
+    """
+    order = np.argsort(x, kind="stable")
+    xs = np.ascontiguousarray(x[order], dtype=np.float64)
+    ls = np.ascontiguousarray(np.asarray(lam, dtype=np.float64)[order])
+    return _weighted_asq_levels_sorted(xs, ls, s)
+
+
 class InnerProductAwareASQ(Compressor):
     """Inner-product-aware ASQ: the average-case objective (ADV) from White & Singal (NeurIPS 2026).
 
@@ -232,8 +303,8 @@ class InnerProductAwareASQ(Compressor):
     lambda is estimated from the database X, as a proxy for the query
     distribution (in this benchmark, queries are drawn from the same distribution).
 
-    TODO(Mitesh): implement fit(). See docs/ipasq.md for the plan and tests/test_ipasq.py
-    for the checks your implementation has to pass.
+    Uses an exact O(s d^2) dynamic program over weighted prefix sums; see
+    docs/ipasq.md for the faster algorithms in the paper.
     """
 
     name = "IP-aware ASQ (ADV)"
@@ -242,7 +313,14 @@ class InnerProductAwareASQ(Compressor):
     def fit(self, X):
         self.n, self.d = X.shape
         self.lam = (X.astype(np.float64) ** 2).mean(axis=0)  # lambda_i = E[x_i^2]
-        raise NotImplementedError("implement the weighted DP; see docs/ipasq.md")
+        s = 1 << self.bits
+        rng = np.random.default_rng(self.seed)
+        Xq = np.empty_like(X, dtype=np.float32)
+        for r in range(self.n):
+            lv = weighted_asq_levels(X[r], self.lam, s)
+            Xq[r] = _stochastic_round_to_levels(X[r], lv, rng)
+        self.Xq = Xq
+        return self
 
     def estimate_ip(self, Q):
         return Q @ self.Xq.T

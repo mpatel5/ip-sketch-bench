@@ -22,7 +22,10 @@ ADV(w, s) = min over |Q| <= s of  sum_i λ_i * (w_i_up - w_i)(w_i - w_i_down)
 
 Plain ASQ is the special case λ_i = 1. Only the diagonal of E[xxᵀ] matters, because SSQ rounds coordinates independently.
 
-## Step 1: weighted DP (required)
+## Step 1: weighted DP (done)
+
+This is implemented in `weighted_asq_levels` and `InnerProductAwareASQ`, and all the tests pass. Results are in the README.
+
 
 Start from `_asq_levels` in `ipsketch/methods.py`, which is the unweighted O(s·d²) dynamic program.
 

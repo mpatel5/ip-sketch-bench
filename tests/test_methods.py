@@ -83,12 +83,12 @@ def test_rotation_helps_with_outlier_channels():
     assert err(RotatedQuant(2)) < err(UniformQuant(2, stochastic=True))
 
 
-@pytest.mark.parametrize("key", [k for k in METHODS if k != "ipasq"])  # ipasq: see test_ipasq.py
+@pytest.mark.parametrize("key", list(METHODS))
 @pytest.mark.parametrize("bits", [1, 4])
 def test_bit_budget_respected(key, bits):
     X, _ = isotropic(300, 64, 1)
     m = METHODS[key](bits, 0).fit(X)
-    if key == "asq":
+    if key in ("asq", "ipasq"):
         assert m.bits_per_vector == bits * 64 + (1 << bits) * 32  # level-table overhead
     elif key in ("uniform", "uniform_stoch", "rotated"):
         assert m.bits_per_vector == bits * 64 + 64

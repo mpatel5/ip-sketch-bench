@@ -118,7 +118,7 @@ def main():
     p.add_argument("--d", type=int, default=128, help="dimension for synthetic data")
     p.add_argument("--nq", type=int, default=500)
     p.add_argument("--bits", type=int, nargs="+", default=[1, 2, 4, 8])
-    p.add_argument("--methods", nargs="+", default=[m for m in METHODS if m != "ipasq"])
+    p.add_argument("--methods", nargs="+", default=list(METHODS))
     p.add_argument("--asq-n", type=int, default=None, help="evaluate ASQ on the first N vectors only")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out", default="results")

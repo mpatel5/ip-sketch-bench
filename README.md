@@ -2,15 +2,45 @@
 
 **How well do vector compression schemes preserve inner products?**
 
-Inner products are the core operation behind attention, retrieval and maximum-inner-product search (MIPS). Every KV-cache compressor, embedding quantizer and vector index trades memory for inner-product accuracy. This repo compares eight such schemes on the same footing: the same bit budget (with per-vector overhead counted), the same data, and the same metrics.
+Inner products are the core operation behind attention, retrieval and maximum-inner-product search (MIPS). Every KV-cache compressor, embedding quantizer and vector index trades memory for inner-product accuracy. This repo compares nine such schemes on the same footing: the same bit budget (with per-vector overhead counted), the same data, and the same metrics.
 
 | Family | Methods |
 |---|---|
-| Scalar quantization | uniform with nearest rounding; uniform with stochastic (unbiased) rounding; random rotation + stochastic uniform; **adaptive stochastic quantization (ASQ)** with an exact O(s·d²) dynamic program |
+| Scalar quantization | uniform with nearest rounding; uniform with stochastic (unbiased) rounding; random rotation + stochastic uniform; **adaptive stochastic quantization (ASQ)** with an exact O(s·d²) dynamic program; **inner-product-aware ASQ**, which weights each coordinate by the queries' second moment |
 | Sketches | Gaussian Johnson–Lindenstrauss; CountSketch; **QJL**, 1-bit signs of a JL projection plus the norm |
 | Learned codebooks | product quantization (k-means, 256 codes per block) |
 
 Queries stay at full precision. That's the asymmetric setting used in vector search and in KV-cache attention, where the query is fresh and the keys are stored compressed.
+
+## Inner-product-aware ASQ: when weighting by the queries helps
+
+Plain ASQ picks each vector's quantization levels to minimize squared error, treating every coordinate equally. With unbiased rounding, though, the error in an inner product with a query x is
+
+```
+Var[<ŵ, x>] = Σᵢ xᵢ² · VarSSQ(wᵢ, Q)
+```
+
+so averaging over queries weights coordinate i by λᵢ = E[xᵢ²]. Minimizing that weighted objective is the average-case (ADV) objective of White & Singal, *Inner Product Aware Quantization* (NeurIPS 2026, arXiv:2606.00289). `InnerProductAwareASQ` implements it exactly. The DP is plain ASQ's, run over weighted prefix sums Σλ, Σλw and Σλw², and λ is estimated from the database as a stand-in for the query distribution. The tests check its levels against brute-force search, check that it reduces to plain ASQ when every λᵢ = 1, and check that it's unbiased.
+
+| Dataset | Bits/dim | ASQ: IP error / recall@10 | IP-aware ASQ: IP error / recall@10 |
+|---|---:|---:|---:|
+| Outlier channels (d = 128) | 3.0 | 0.161 / 0.557 | **0.075 / 0.777** |
+| Outlier channels (d = 128) | 8.0 | 0.006 / 0.986 | **0.004 / 0.991** |
+| GloVe-300 | 2.43 | 0.507 / 0.580 | 0.506 / 0.578 |
+| GloVe-300 | 5.71 | 0.090 / 0.911 | 0.089 / 0.911 |
+
+At 1 bit the two are identical, because both levels must be the vector's min and max.
+
+**The gain depends on how concentrated the query energy is.** On the outlier-channel data, weighting cuts inner-product error by 53% at the same storage and raises recall@10 from 0.56 to 0.78. On GloVe it changes nothing. The second moments explain why:
+
+| | Outlier channels | GloVe-300 |
+|---|---:|---:|
+| max λᵢ / median λᵢ | 643 | 3.9 |
+| share of query energy in the top 3% of dimensions | 85% | 6% |
+
+When the query energy is spread almost evenly, the weights are nearly uniform and the objective collapses to plain ASQ. The setting where weighting should matter most is one where a few channels dominate, which is what transformer keys and queries look like, so the next experiment is LLM KV caches.
+
+Encoding costs the same as ASQ, since it's the same O(s·d²) DP. The paper's faster algorithms are the next step (see [`docs/ipasq.md`](docs/ipasq.md)). In the GloVe CSV, IP-aware ASQ's encode times come from a 2-core cloud VM, and every other method's from the M5 Max. On that VM, plain ASQ took 32 s at 4 bits, compared with 13.8 s on the M5 Max.
 
 ## Results: GloVe-300 word embeddings (real data)
 
@@ -69,7 +99,7 @@ Full results for every method at 1, 2, 4 and 8 bits are in [`results/outliers.cs
 2. **QJL is the best data-oblivious method at 1 bit per dimension.** Signs of a Gaussian projection plus one norm reach 0.975 recall 10@100 at 1.0 bits/dim. Uniform quantization reaches 0.74 even with 1.5 bits/dim. Its error then shrinks slowly with more bits, because each sign carries at most one bit of information.
 3. **Spending the budget on full floats is wasteful.** At a fixed bit budget, JL and CountSketch that store float32 coordinates keep only b·d/32 dimensions, and they're the worst methods at every budget. Spending bits on quantization beats spending them on extra projection dimensions.
 4. **Rotation fixes outlier channels.** A random orthogonal rotation before stochastic rounding spreads the outliers across all dimensions. At 2 bits it cuts inner-product error from 0.165 to 0.106 and raises recall 10@100 from 0.90 to 0.99, for one extra matrix multiply.
-5. **Minimizing squared error isn't the same as preserving inner products.** ASQ picks per-vector levels that minimize quantization variance, and it does cut variance about 6× compared with uniform levels on this data (verified in the tests). Yet its inner-product error barely moves (0.161 vs. 0.165 at 2 bits). The queries share the same outlier channels, so the inner-product error is dominated by a few coordinates that the variance objective weights no more heavily than the rest. ASQ also pays for its level table, so 2 bits becomes 3.0 bits/dim and 4 bits becomes 8.0. This gap is what *inner-product-aware* quantization targets (see the roadmap below).
+5. **Minimizing squared error isn't the same as preserving inner products.** ASQ picks per-vector levels that minimize quantization variance, and it does cut variance about 6× compared with uniform levels on this data (verified in the tests). Yet its inner-product error barely moves (0.161 vs. 0.165 at 2 bits). The queries share the same outlier channels, so the inner-product error is dominated by a few coordinates that the variance objective weights no more heavily than the rest. ASQ also pays for its level table, so 2 bits becomes 3.0 bits/dim and 4 bits becomes 8.0. This gap is what *inner-product-aware* quantization targets; see the section above, where weighting by the queries cuts the 2-bit error to 0.075.
 
 All the stochastic methods and sketches are unbiased: their measured bias is within ±0.002 of the true inner product, and the tests check this.
 
@@ -96,12 +126,15 @@ The tests check that:
 - every stochastic quantizer and sketch is unbiased, averaged over 3,000 seeds;
 - the ASQ dynamic program matches brute-force search over all level sets;
 - ASQ beats uniform levels on squared error, and rotation beats plain uniform rounding on outlier data;
+- inner-product-aware ASQ's levels match brute-force search, it reduces to ASQ when every λᵢ = 1, and it beats ASQ by more than 10% on outlier-heavy queries;
 - every method's reported bits per vector matches the budget it claims.
 
 ## Roadmap
 
 - [x] GloVe-300 results at 100K vectors
-- [ ] Inner-product-aware adaptive quantization: quantization objectives that preserve inner products with unseen query vectors, including fast exact and approximate algorithms (White & Singal, NeurIPS 2026)
+- [x] Inner-product-aware adaptive quantization (ADV objective, exact DP), following White & Singal (NeurIPS 2026)
+- [ ] The paper's fast exact and approximate ADV algorithms, plus the worst-case (MDV) objective
+- [ ] Estimate λ from a small query sample instead of the database
 - [ ] Two-stage schemes: MSE quantizer + 1-bit QJL on the residual (TurboQuant-style)
 - [ ] Apply the best methods to a real LLM's KV cache (next project: `sketchkv`)
 
