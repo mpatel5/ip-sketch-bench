@@ -1,0 +1,32 @@
+glove.6B.300d: database (100000, 300), queries (1000, 300)
+Uniform (nearest)                  b=1  bits/dim= 1.21  ip_err=1.726  bias=+0.4570  R@10=0.472  R10@100=0.893  enc=0.04s
+Uniform (nearest)                  b=2  bits/dim= 2.21  ip_err=0.400  bias=+0.0047  R@10=0.661  R10@100=0.979  enc=0.05s
+Uniform (nearest)                  b=4  bits/dim= 4.21  ip_err=0.080  bias=+0.0002  R@10=0.917  R10@100=1.000  enc=0.04s
+Uniform (nearest)                  b=8  bits/dim= 8.21  ip_err=0.005  bias=+0.0000  R@10=0.995  R10@100=1.000  enc=0.05s
+Uniform (stochastic)               b=1  bits/dim= 1.21  ip_err=1.939  bias=-0.0001  R@10=0.074  R10@100=0.268  enc=0.21s
+Uniform (stochastic)               b=2  bits/dim= 2.21  ip_err=0.565  bias=-0.0004  R@10=0.548  R10@100=0.933  enc=0.22s
+Uniform (stochastic)               b=4  bits/dim= 4.21  ip_err=0.113  bias=-0.0000  R@10=0.895  R10@100=1.000  enc=0.23s
+Uniform (stochastic)               b=8  bits/dim= 8.21  ip_err=0.007  bias=-0.0000  R@10=0.993  R10@100=1.000  enc=0.22s
+Rotation + uniform (stochastic)    b=1  bits/dim= 1.21  ip_err=1.885  bias=-0.0014  R@10=0.079  R10@100=0.285  enc=0.35s
+Rotation + uniform (stochastic)    b=2  bits/dim= 2.21  ip_err=0.549  bias=-0.0005  R@10=0.566  R10@100=0.935  enc=0.31s
+Rotation + uniform (stochastic)    b=4  bits/dim= 4.21  ip_err=0.110  bias=-0.0001  R@10=0.900  R10@100=1.000  enc=0.35s
+Rotation + uniform (stochastic)    b=8  bits/dim= 8.21  ip_err=0.006  bias=-0.0000  R@10=0.993  R10@100=1.000  enc=0.28s
+ASQ (exact DP)                     b=1  bits/dim= 1.21  ip_err=1.936  bias=-0.0026  R@10=0.093  R10@100=0.324  enc=1.31s
+ASQ (exact DP)                     b=2  bits/dim= 2.43  ip_err=0.507  bias=+0.0007  R@10=0.580  R10@100=0.958  enc=2.57s
+ASQ (exact DP)                     b=4  bits/dim= 5.71  ip_err=0.090  bias=-0.0000  R@10=0.911  R10@100=1.000  enc=13.82s
+Gaussian JL (float32)              b=1  bits/dim= 0.96  ip_err=3.944  bias=-0.1372  R@10=0.008  R10@100=0.044  enc=0.00s
+Gaussian JL (float32)              b=2  bits/dim= 1.92  ip_err=2.787  bias=-0.0848  R@10=0.025  R10@100=0.110  enc=0.00s
+Gaussian JL (float32)              b=4  bits/dim= 3.95  ip_err=2.001  bias=-0.0322  R@10=0.083  R10@100=0.274  enc=0.01s
+Gaussian JL (float32)              b=8  bits/dim= 8.00  ip_err=1.405  bias=-0.0025  R@10=0.205  R10@100=0.527  enc=0.01s
+CountSketch (float32)              b=1  bits/dim= 0.96  ip_err=3.819  bias=-0.1703  R@10=0.009  R10@100=0.045  enc=0.00s
+CountSketch (float32)              b=2  bits/dim= 1.92  ip_err=2.797  bias=+0.1018  R@10=0.027  R10@100=0.126  enc=0.00s
+CountSketch (float32)              b=4  bits/dim= 3.95  ip_err=1.984  bias=+0.0159  R@10=0.079  R10@100=0.278  enc=0.00s
+CountSketch (float32)              b=8  bits/dim= 8.00  ip_err=1.352  bias=+0.0389  R@10=0.215  R10@100=0.551  enc=0.01s
+QJL (1-bit signs)                  b=1  bits/dim= 1.00  ip_err=0.930  bias=+0.0157  R@10=0.412  R10@100=0.795  enc=0.15s
+QJL (1-bit signs)                  b=2  bits/dim= 2.00  ip_err=0.635  bias=+0.0110  R@10=0.579  R10@100=0.934  enc=0.31s
+QJL (1-bit signs)                  b=4  bits/dim= 4.00  ip_err=0.446  bias=-0.0226  R@10=0.693  R10@100=0.981  enc=0.67s
+QJL (1-bit signs)                  b=8  bits/dim= 8.00  ip_err=0.311  bias=-0.0182  R@10=0.779  R10@100=0.996  enc=1.31s
+Product quantization               b=1  bits/dim= 0.99  ip_err=0.426  bias=-0.0005  R@10=0.564  R10@100=0.912  enc=11.96s
+Product quantization               b=2  bits/dim= 2.00  ip_err=0.229  bias=-0.0002  R@10=0.764  R10@100=0.990  enc=7.62s
+Product quantization               b=4  bits/dim= 4.00  ip_err=0.066  bias=-0.0001  R@10=0.923  R10@100=1.000  enc=15.00s
+Product quantization               b=8  bits/dim= 8.00  ip_err=0.005  bias=+0.0000  R@10=0.987  R10@100=1.000  enc=26.09s

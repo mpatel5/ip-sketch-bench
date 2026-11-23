@@ -12,7 +12,39 @@ Inner products are the core operation behind attention, retrieval and maximum-in
 
 Queries stay at full precision. That's the asymmetric setting used in vector search and in KV-cache attention, where the query is fresh and the keys are stored compressed.
 
-## Results: embeddings with outlier channels
+## Results: GloVe-300 word embeddings (real data)
+
+The dataset is 100,000 GloVe 6B 300-d vectors as the database and 1,000 held-out vectors as queries. ASQ is evaluated on the first 20,000 vectors because of its O(4ᵇ·d²) dynamic program. The run took a few minutes on an Apple M5 Max, and the raw log is in [`results/glove.6B.300d.log`](results/glove.6B.300d.log).
+
+![GloVe results](results/glove.6B.300d.png)
+
+| Method | Bits/dim (incl. overhead) | Relative IP error | MIPS recall 10@100 | Encode time (M5 Max) |
+|---|---:|---:|---:|---:|
+| Uniform, nearest rounding | 1.21 | 1.726 (bias +0.457) | 0.893 | 0.04 s |
+| Uniform, stochastic | 1.21 | 1.939 | 0.268 | 0.21 s |
+| **QJL (1-bit)** | **1.00** | **0.930** | **0.795** | 0.15 s |
+| **Product quantization** | **0.99** | **0.426** | **0.912** | 12.0 s |
+| Uniform, nearest rounding | 2.21 | 0.400 | 0.979 | 0.05 s |
+| Uniform, stochastic | 2.21 | 0.565 | 0.933 | 0.22 s |
+| Rotation + uniform (stochastic) | 2.21 | 0.549 | 0.935 | 0.31 s |
+| ASQ, exact DP | 2.43 | 0.507 | 0.958 | 2.6 s |
+| Gaussian JL (float32) | 1.92 | 2.787 | 0.110 | < 0.01 s |
+| CountSketch (float32) | 1.92 | 2.797 | 0.126 | < 0.01 s |
+| QJL | 2.00 | 0.635 | 0.934 | 0.31 s |
+| **Product quantization** | **2.00** | **0.229** | **0.990** | 7.6 s |
+
+### What the GloVe numbers show
+
+1. **Product quantization is the most accurate at every budget on real data too.** At 1 bit per dimension it reaches 0.912 recall 10@100, and at 2 bits it reaches 0.990, but it took 8–26 s to encode on an M5 Max, compared with well under a second for the data-oblivious methods.
+2. **Unbiased doesn't mean better for search.** At 2 bits, plain nearest rounding beats stochastic rounding on both inner-product error (0.400 vs. 0.565) and recall (0.979 vs. 0.933). Stochastic rounding removes bias by adding variance, and for ranking, variance hurts more than a small bias does. At 1 bit the trade-off turns harsh: nearest rounding still ranks well (0.893), but its inner products are biased by +46%. Unbiasedness matters when inner products feed a sum, as in attention, and it matters less for top-k search.
+3. **QJL is again the best data-oblivious method at 1 bit** (0.795 recall, compared with 0.27–0.32 for the stochastic scalar quantizers at 1.21 bits). It's weaker than on the synthetic data, though, and by 2 bits nearest rounding overtakes it.
+4. **Rotation's benefit depends on the data.** GloVe has no dominant outlier channels, so a random rotation barely helps (0.549 vs. 0.565 error at 2 bits). On the outlier-channel data, the same rotation cut error by 35%.
+5. **ASQ helps modestly on real data.** With d = 300, its per-vector level table costs less (2 bits becomes 2.43 bits/dim). It cuts inner-product error by 10% compared with stochastic uniform (0.507 vs. 0.565) and raises recall to 0.958, at about 12× the encoding time. Its objective is still squared error rather than inner products.
+6. **Spending the budget on full floats loses everywhere.** JL and CountSketch with float32 coordinates stay below 0.13 recall at 2 bits/dim.
+
+The full table is in [`results/glove.6B.300d.csv`](results/glove.6B.300d.csv).
+
+## Results: synthetic embeddings with outlier channels
 
 The dataset is 20,000 database vectors and 500 queries in d = 128. Per-dimension scales are log-normal, and four channels are 20× larger, similar to the outlier features in transformer activations and KV caches. Reproduce it with `python -m ipsketch.bench --dataset outliers --asq-n 20000`.
 
@@ -68,7 +100,7 @@ The tests check that:
 
 ## Roadmap
 
-- [ ] GloVe-300 results at 100K+ vectors
+- [x] GloVe-300 results at 100K vectors
 - [ ] Inner-product-aware adaptive quantization: quantization objectives that preserve inner products with unseen query vectors, including fast exact and approximate algorithms (White & Singal, NeurIPS 2026)
 - [ ] Two-stage schemes: MSE quantizer + 1-bit QJL on the residual (TurboQuant-style)
 - [ ] Apply the best methods to a real LLM's KV cache (next project: `sketchkv`)
